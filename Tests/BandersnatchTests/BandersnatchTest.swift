@@ -1,10 +1,9 @@
+import Bandersnatch
 import Foundation
-import Testing
+import XCTest
 
-@testable import Bandersnatch
-
-@Suite struct BandersnatchTests {
-	@Test func BandersnatchRustCallWorks() throws {
+final class BandersnatchTests: XCTest {
+	func testBandersnatchRustCallWorks() throws {
 		ring_context()
 	}
 }
