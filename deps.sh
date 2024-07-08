@@ -11,7 +11,7 @@ cp target/debug/libbandersnatch_vrfs.a lib
 
 cat <<EOL > include/module.modulemap
 module bandersnatch_vrfs {
-  header "../include/bindings.h"
+  header "./bindings.h"
   link "bandersnatch_vrfs"
   export *
 }

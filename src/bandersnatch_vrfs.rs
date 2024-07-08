@@ -18,6 +18,29 @@ pub extern "C" fn sizeof_public() -> usize {
 }
 
 #[no_mangle]
+pub extern "C" fn public_deserialize_compressed(
+    out: *mut *mut Public,
+    data: *const u8,
+    len: usize,
+) -> bool {
+    if out.is_null() || data.is_null() {
+        return false;
+    }
+
+    let slice = unsafe { std::slice::from_raw_parts(data, len) };
+    match Public::deserialize_compressed(slice) {
+        Ok(public) => {
+            let boxed_public = Box::new(public);
+            unsafe {
+                *out = Box::into_raw(boxed_public);
+            }
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn sizeof_prover() -> usize {
     size_of::<Prover>()
 }
@@ -29,36 +52,45 @@ pub extern "C" fn sizeof_verifier() -> usize {
 
 #[no_mangle]
 pub extern "C" fn prover_new(
+    out: *mut *mut Prover,
     ring: *const Public,
     ring_len: usize,
     prover_idx: usize,
-) -> *mut Prover {
-    if ring.is_null() || ring_len == 0 {
-        return std::ptr::null_mut();
+) -> bool {
+    if out.is_null() || ring.is_null() {
+        return false;
     }
 
     let ring_slice = unsafe { std::slice::from_raw_parts(ring, ring_len) };
     let ring_vec = ring_slice.to_vec();
 
     let prover = Prover::new(ring_vec, prover_idx);
-    Box::into_raw(Box::new(prover))
+
+    let boxed_prover = Box::new(prover);
+    unsafe {
+        *out = Box::into_raw(boxed_prover);
+    }
+
+    true
 }
 
 #[no_mangle]
 pub extern "C" fn prover_ring_vrf_sign(
+    out: *mut *mut c_uchar,
     prover: *const Prover,
     vrf_input_data: *const c_uchar,
     vrf_input_len: usize,
     aux_data: *const c_uchar,
     aux_data_len: usize,
-) -> *mut Vec<u8> {
+) -> bool {
     if prover.is_null()
         || vrf_input_data.is_null()
         || aux_data.is_null()
         || vrf_input_len == 0
         || aux_data_len == 0
+        || out.is_null()
     {
-        return std::ptr::null_mut();
+        return false;
     }
 
     let vrf_input_slice = unsafe { std::slice::from_raw_parts(vrf_input_data, vrf_input_len) };
@@ -67,24 +99,33 @@ pub extern "C" fn prover_ring_vrf_sign(
     let prover = unsafe { &*prover };
 
     let result = prover.ring_vrf_sign(vrf_input_slice, aux_data_slice);
-    Box::into_raw(Box::new(result))
+
+    // Convert Vec<u8> to a heap-allocated array and return its pointer
+    let boxed_slice = result.into_boxed_slice();
+    let raw_ptr = boxed_slice.as_ptr();
+    std::mem::forget(boxed_slice); // Prevent deallocation when the Box goes out of scope
+
+    unsafe { *out = raw_ptr as *mut c_uchar };
+    true
 }
 
 #[no_mangle]
 pub extern "C" fn prover_ietf_vrf_sign(
+    out: *mut *mut c_uchar,
     prover: *const Prover,
     vrf_input_data: *const c_uchar,
     vrf_input_len: usize,
     aux_data: *const c_uchar,
     aux_data_len: usize,
-) -> *mut Vec<u8> {
+) -> bool {
     if prover.is_null()
         || vrf_input_data.is_null()
         || aux_data.is_null()
         || vrf_input_len == 0
         || aux_data_len == 0
+        || out.is_null()
     {
-        return std::ptr::null_mut();
+        return false;
     }
 
     let vrf_input_slice = unsafe { std::slice::from_raw_parts(vrf_input_data, vrf_input_len) };
@@ -93,24 +134,42 @@ pub extern "C" fn prover_ietf_vrf_sign(
     let prover = unsafe { &*prover };
 
     let result = prover.ietf_vrf_sign(vrf_input_slice, aux_data_slice);
-    Box::into_raw(Box::new(result))
+
+    // Convert Vec<u8> to a heap-allocated array and return its pointer
+    let boxed_slice = result.into_boxed_slice();
+    let raw_ptr = boxed_slice.as_ptr();
+    std::mem::forget(boxed_slice); // Prevent deallocation when the Box goes out of scope
+
+    unsafe { *out = raw_ptr as *mut c_uchar };
+    true
 }
 
 #[no_mangle]
-pub extern "C" fn verifier_new(ring: *const Public, ring_len: usize) -> *mut Verifier {
+pub extern "C" fn verifier_new(
+    out: *mut *mut Verifier,
+    ring: *const Public,
+    ring_len: usize,
+) -> bool {
     if ring.is_null() || ring_len == 0 {
-        return std::ptr::null_mut();
+        return false;
     }
 
     let ring_slice = unsafe { std::slice::from_raw_parts(ring, ring_len) };
     let ring_vec = ring_slice.to_vec();
 
     let verifier = Verifier::new(ring_vec);
-    Box::into_raw(Box::new(verifier))
+
+    let boxed_verifier = Box::new(verifier);
+    unsafe {
+        *out = Box::into_raw(boxed_verifier);
+    }
+
+    true
 }
 
 #[no_mangle]
 pub extern "C" fn verifier_ring_vrf_verify(
+    out: *mut u8,
     verifier: *const Verifier,
     vrf_input_data: *const c_uchar,
     vrf_input_len: usize,
@@ -118,7 +177,6 @@ pub extern "C" fn verifier_ring_vrf_verify(
     aux_data_len: usize,
     signature: *const c_uchar,
     signature_len: usize,
-    result: *mut [u8; 32],
 ) -> bool {
     if verifier.is_null()
         || vrf_input_data.is_null()
@@ -127,7 +185,7 @@ pub extern "C" fn verifier_ring_vrf_verify(
         || vrf_input_len == 0
         || aux_data_len == 0
         || signature_len != 32
-        || result.is_null()
+        || out.is_null()
     {
         return false;
     }
@@ -145,7 +203,7 @@ pub extern "C" fn verifier_ring_vrf_verify(
         };
 
     unsafe {
-        (*result).copy_from_slice(&result_array);
+        std::ptr::copy_nonoverlapping(result_array.as_ptr(), out, result_array.len());
     }
 
     true
@@ -153,6 +211,7 @@ pub extern "C" fn verifier_ring_vrf_verify(
 
 #[no_mangle]
 pub extern "C" fn verifier_ietf_vrf_verify(
+    out: *mut u8,
     verifier: *const Verifier,
     vrf_input_data: *const c_uchar,
     vrf_input_len: usize,
@@ -161,7 +220,6 @@ pub extern "C" fn verifier_ietf_vrf_verify(
     signature: *const c_uchar,
     signature_len: usize,
     signer_key_index: usize,
-    result: *mut [u8; 32],
 ) -> bool {
     if verifier.is_null()
         || vrf_input_data.is_null()
@@ -170,7 +228,7 @@ pub extern "C" fn verifier_ietf_vrf_verify(
         || vrf_input_len == 0
         || aux_data_len == 0
         || signature_len != 64
-        || result.is_null()
+        || out.is_null()
     {
         return false;
     }
@@ -192,7 +250,7 @@ pub extern "C" fn verifier_ietf_vrf_verify(
     };
 
     unsafe {
-        (*result).copy_from_slice(&result_array);
+        std::ptr::copy_nonoverlapping(result_array.as_ptr(), out, result_array.len());
     }
 
     true
