@@ -27,7 +27,7 @@ let package = Package(
 			publicHeadersPath: "./",
 			linkerSettings: [
 				.unsafeFlags([
-					"-L./target/aarch64-apple-darwin/debug/",
+					"-L./lib/libbandersnatch_vrfs",
 					"-lbandersnatch_vrfs",
 				])
 			]
