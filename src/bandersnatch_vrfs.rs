@@ -1,5 +1,8 @@
 // Code copied and modified based on: https://github.com/davxy/bandersnatch-vrfs-spec/blob/main/example/src/main.rs
-// Changes: basically made all things public, and made RING_SIZE configurable
+// Changes: basically made all things public, made RING_SIZE configurable, and make functions caompatible for cbindgen
+use std::os::raw::c_uchar;
+use std::ptr::NonNull;
+use std::slice;
 
 use ark_ec_vrfs::suites::bandersnatch::edwards as bandersnatch;
 use ark_ec_vrfs::{prelude::ark_serialize, suites::bandersnatch::edwards::RingContext};
@@ -12,6 +15,7 @@ const RING_SIZE_DEFAULT: usize = 1023;
 // This is the IETF `Prove` procedure output as described in section 2.2
 // of the Bandersnatch VRFs specification
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
+#[repr(C)]
 pub struct IetfVrfSignature {
     output: Output,
     proof: IetfProof,
@@ -20,6 +24,7 @@ pub struct IetfVrfSignature {
 // This is the IETF `Prove` procedure output as described in section 4.2
 // of the Bandersnatch VRFs specification
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
+#[repr(C)]
 pub struct RingVrfSignature {
     output: Output,
     // This contains both the Pedersen proof and actual ring proof.
@@ -27,7 +32,8 @@ pub struct RingVrfSignature {
 }
 
 // "Static" ring context data
-pub fn ring_context() -> &'static RingContext {
+#[no_mangle]
+pub unsafe extern "C" fn ring_context() -> &'static RingContext {
     use std::sync::OnceLock;
     static RING_CTX: OnceLock<RingContext> = OnceLock::new();
     let ring_size: usize = std::env::var("RING_SIZE").map_or(RING_SIZE_DEFAULT, |s| {
@@ -43,12 +49,13 @@ pub fn ring_context() -> &'static RingContext {
         let mut buf = Vec::new();
         file.read_to_end(&mut buf).unwrap();
         let pcs_params = PcsParams::deserialize_uncompressed_unchecked(&mut &buf[..]).unwrap();
-        RingContext::from_srs(pcs_params, ring_size).unwrap()
+        RingContext::from_srs(ring_size, pcs_params).unwrap()
     })
 }
 
 // Construct VRF Input Point from arbitrary data (section 1.2)
-pub fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
+#[no_mangle]
+pub unsafe extern "C" fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
     let point =
         <bandersnatch::BandersnatchSha512Ell2 as ark_ec_vrfs::Suite>::data_to_point(vrf_input_data)
             .unwrap();
@@ -56,6 +63,7 @@ pub fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
 }
 
 // Prover actor.
+#[repr(C)]
 pub struct Prover {
     pub prover_idx: usize,
     pub secret: Secret,
@@ -63,7 +71,8 @@ pub struct Prover {
 }
 
 impl Prover {
-    pub fn new(ring: Vec<Public>, prover_idx: usize) -> Self {
+    #[no_mangle]
+    pub unsafe extern "C" fn new(ring: Vec<Public>, prover_idx: usize) -> Self {
         Self {
             prover_idx,
             secret: Secret::from_seed(&prover_idx.to_le_bytes()),
@@ -119,6 +128,7 @@ impl Prover {
 pub type RingCommitment = ark_ec_vrfs::ring::RingCommitment<bandersnatch::BandersnatchSha512Ell2>;
 
 // Verifier actor.
+#[repr(C)]
 pub struct Verifier {
     pub commitment: RingCommitment,
     pub ring: Vec<Public>,

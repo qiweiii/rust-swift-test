@@ -1,13 +1,23 @@
-use std::path::PathBuf;
+extern crate cbindgen;
+
+use std::env;
 
 fn main() {
-    let out_dir = PathBuf::from("./generated");
+    let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
 
-    let bridges = vec!["src/lib.rs"];
-    for path in &bridges {
-        println!("cargo:rerun-if-changed={}", path);
-    }
-
-    swift_bridge_build::parse_bridges(bridges)
-        .write_all_concatenated(out_dir, env!("CARGO_PKG_NAME"));
+    cbindgen::Builder::new()
+        .with_crate(crate_dir)
+        .generate()
+        // during dev
+        // .map_or_else(
+        //     |error| match error {
+        //         cbindgen::Error::ParseSyntaxError { .. } => {}
+        //         e => panic!("{:?}", e),
+        //     },
+        //     |bindings| {
+        //         bindings.write_to_file("target/include/bindings.h");
+        //     },
+        // );
+        .expect("Unable to generate bindings")
+        .write_to_file("include/bindings.h");
 }
