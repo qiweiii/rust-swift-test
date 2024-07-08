@@ -1,8 +1,8 @@
 // Code copied and modified based on: https://github.com/davxy/bandersnatch-vrfs-spec/blob/main/example/src/main.rs
-// Changes: basically made all things public, made RING_SIZE configurable, and make functions caompatible for cbindgen
+// Changes: made RING_SIZE configurable, and add stuff for cbindgen
+
+use std::mem::size_of;
 use std::os::raw::c_uchar;
-use std::ptr::NonNull;
-use std::slice;
 
 use ark_ec_vrfs::suites::bandersnatch::edwards as bandersnatch;
 use ark_ec_vrfs::{prelude::ark_serialize, suites::bandersnatch::edwards::RingContext};
@@ -11,6 +11,192 @@ use bandersnatch::{IetfProof, Input, Output, Public, RingProof, Secret};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
 const RING_SIZE_DEFAULT: usize = 1023;
+
+#[no_mangle]
+pub extern "C" fn sizeof_public() -> usize {
+    size_of::<Public>()
+}
+
+#[no_mangle]
+pub extern "C" fn sizeof_prover() -> usize {
+    size_of::<Prover>()
+}
+
+#[no_mangle]
+pub extern "C" fn sizeof_verifier() -> usize {
+    size_of::<Verifier>()
+}
+
+#[no_mangle]
+pub extern "C" fn prover_new(
+    ring: *const Public,
+    ring_len: usize,
+    prover_idx: usize,
+) -> *mut Prover {
+    if ring.is_null() || ring_len == 0 {
+        return std::ptr::null_mut();
+    }
+
+    let ring_slice = unsafe { std::slice::from_raw_parts(ring, ring_len) };
+    let ring_vec = ring_slice.to_vec();
+
+    let prover = Prover::new(ring_vec, prover_idx);
+    Box::into_raw(Box::new(prover))
+}
+
+#[no_mangle]
+pub extern "C" fn prover_ring_vrf_sign(
+    prover: *const Prover,
+    vrf_input_data: *const c_uchar,
+    vrf_input_len: usize,
+    aux_data: *const c_uchar,
+    aux_data_len: usize,
+) -> *mut Vec<u8> {
+    if prover.is_null()
+        || vrf_input_data.is_null()
+        || aux_data.is_null()
+        || vrf_input_len == 0
+        || aux_data_len == 0
+    {
+        return std::ptr::null_mut();
+    }
+
+    let vrf_input_slice = unsafe { std::slice::from_raw_parts(vrf_input_data, vrf_input_len) };
+    let aux_data_slice = unsafe { std::slice::from_raw_parts(aux_data, aux_data_len) };
+
+    let prover = unsafe { &*prover };
+
+    let result = prover.ring_vrf_sign(vrf_input_slice, aux_data_slice);
+    Box::into_raw(Box::new(result))
+}
+
+#[no_mangle]
+pub extern "C" fn prover_ietf_vrf_sign(
+    prover: *const Prover,
+    vrf_input_data: *const c_uchar,
+    vrf_input_len: usize,
+    aux_data: *const c_uchar,
+    aux_data_len: usize,
+) -> *mut Vec<u8> {
+    if prover.is_null()
+        || vrf_input_data.is_null()
+        || aux_data.is_null()
+        || vrf_input_len == 0
+        || aux_data_len == 0
+    {
+        return std::ptr::null_mut();
+    }
+
+    let vrf_input_slice = unsafe { std::slice::from_raw_parts(vrf_input_data, vrf_input_len) };
+    let aux_data_slice = unsafe { std::slice::from_raw_parts(aux_data, aux_data_len) };
+
+    let prover = unsafe { &*prover };
+
+    let result = prover.ietf_vrf_sign(vrf_input_slice, aux_data_slice);
+    Box::into_raw(Box::new(result))
+}
+
+#[no_mangle]
+pub extern "C" fn verifier_new(ring: *const Public, ring_len: usize) -> *mut Verifier {
+    if ring.is_null() || ring_len == 0 {
+        return std::ptr::null_mut();
+    }
+
+    let ring_slice = unsafe { std::slice::from_raw_parts(ring, ring_len) };
+    let ring_vec = ring_slice.to_vec();
+
+    let verifier = Verifier::new(ring_vec);
+    Box::into_raw(Box::new(verifier))
+}
+
+#[no_mangle]
+pub extern "C" fn verifier_ring_vrf_verify(
+    verifier: *const Verifier,
+    vrf_input_data: *const c_uchar,
+    vrf_input_len: usize,
+    aux_data: *const c_uchar,
+    aux_data_len: usize,
+    signature: *const c_uchar,
+    signature_len: usize,
+    result: *mut [u8; 32],
+) -> bool {
+    if verifier.is_null()
+        || vrf_input_data.is_null()
+        || aux_data.is_null()
+        || signature.is_null()
+        || vrf_input_len == 0
+        || aux_data_len == 0
+        || signature_len != 32
+        || result.is_null()
+    {
+        return false;
+    }
+
+    let vrf_input_slice = unsafe { std::slice::from_raw_parts(vrf_input_data, vrf_input_len) };
+    let aux_data_slice = unsafe { std::slice::from_raw_parts(aux_data, aux_data_len) };
+    let signature_slice = unsafe { std::slice::from_raw_parts(signature, signature_len) };
+
+    let verifier = unsafe { &*verifier };
+
+    let result_array =
+        match verifier.ring_vrf_verify(vrf_input_slice, aux_data_slice, signature_slice) {
+            Ok(array) => array,
+            Err(_) => return false, // Handle error case
+        };
+
+    unsafe {
+        (*result).copy_from_slice(&result_array);
+    }
+
+    true
+}
+
+#[no_mangle]
+pub extern "C" fn verifier_ietf_vrf_verify(
+    verifier: *const Verifier,
+    vrf_input_data: *const c_uchar,
+    vrf_input_len: usize,
+    aux_data: *const c_uchar,
+    aux_data_len: usize,
+    signature: *const c_uchar,
+    signature_len: usize,
+    signer_key_index: usize,
+    result: *mut [u8; 32],
+) -> bool {
+    if verifier.is_null()
+        || vrf_input_data.is_null()
+        || aux_data.is_null()
+        || signature.is_null()
+        || vrf_input_len == 0
+        || aux_data_len == 0
+        || signature_len != 64
+        || result.is_null()
+    {
+        return false;
+    }
+
+    let vrf_input_slice = unsafe { std::slice::from_raw_parts(vrf_input_data, vrf_input_len) };
+    let aux_data_slice = unsafe { std::slice::from_raw_parts(aux_data, aux_data_len) };
+    let signature_slice = unsafe { std::slice::from_raw_parts(signature, signature_len) };
+
+    let verifier = unsafe { &*verifier };
+
+    let result_array = match verifier.ietf_vrf_verify(
+        vrf_input_slice,
+        aux_data_slice,
+        signature_slice,
+        signer_key_index,
+    ) {
+        Ok(array) => array,
+        Err(_) => return false, // Handle error case
+    };
+
+    unsafe {
+        (*result).copy_from_slice(&result_array);
+    }
+
+    true
+}
 
 // This is the IETF `Prove` procedure output as described in section 2.2
 // of the Bandersnatch VRFs specification
@@ -32,8 +218,7 @@ pub struct RingVrfSignature {
 }
 
 // "Static" ring context data
-#[no_mangle]
-pub unsafe extern "C" fn ring_context() -> &'static RingContext {
+fn ring_context() -> &'static RingContext {
     use std::sync::OnceLock;
     static RING_CTX: OnceLock<RingContext> = OnceLock::new();
     let ring_size: usize = std::env::var("RING_SIZE").map_or(RING_SIZE_DEFAULT, |s| {
@@ -54,8 +239,7 @@ pub unsafe extern "C" fn ring_context() -> &'static RingContext {
 }
 
 // Construct VRF Input Point from arbitrary data (section 1.2)
-#[no_mangle]
-pub unsafe extern "C" fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
+fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
     let point =
         <bandersnatch::BandersnatchSha512Ell2 as ark_ec_vrfs::Suite>::data_to_point(vrf_input_data)
             .unwrap();
@@ -63,7 +247,6 @@ pub unsafe extern "C" fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
 }
 
 // Prover actor.
-#[repr(C)]
 pub struct Prover {
     pub prover_idx: usize,
     pub secret: Secret,
@@ -71,8 +254,7 @@ pub struct Prover {
 }
 
 impl Prover {
-    #[no_mangle]
-    pub unsafe extern "C" fn new(ring: Vec<Public>, prover_idx: usize) -> Self {
+    fn new(ring: Vec<Public>, prover_idx: usize) -> Self {
         Self {
             prover_idx,
             secret: Secret::from_seed(&prover_idx.to_le_bytes()),
@@ -125,10 +307,10 @@ impl Prover {
     }
 }
 
+/// cbindgen:ignore
 pub type RingCommitment = ark_ec_vrfs::ring::RingCommitment<bandersnatch::BandersnatchSha512Ell2>;
 
 // Verifier actor.
-#[repr(C)]
 pub struct Verifier {
     pub commitment: RingCommitment,
     pub ring: Vec<Public>,

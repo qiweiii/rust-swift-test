@@ -5,19 +5,12 @@ use std::env;
 fn main() {
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
 
+    let config = cbindgen::Config::from_file("cbindgen.toml").unwrap();
+
     cbindgen::Builder::new()
         .with_crate(crate_dir)
+        .with_config(config)
         .generate()
-        // during dev
-        // .map_or_else(
-        //     |error| match error {
-        //         cbindgen::Error::ParseSyntaxError { .. } => {}
-        //         e => panic!("{:?}", e),
-        //     },
-        //     |bindings| {
-        //         bindings.write_to_file("target/include/bindings.h");
-        //     },
-        // );
         .expect("Unable to generate bindings")
         .write_to_file("include/bindings.h");
 }
