@@ -1,3 +1,5 @@
+Testing calling bandersnatch-spec rust function from swift
+
 branch `main`: swfit-bridge (not working yet)
 
 branch `c-binding`: cbindgen (works)

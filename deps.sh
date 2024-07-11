@@ -17,4 +17,4 @@ module bandersnatch_vrfs {
 }
 EOL
 
-echo "Setup blst successfully."
+echo "Setup successfully."

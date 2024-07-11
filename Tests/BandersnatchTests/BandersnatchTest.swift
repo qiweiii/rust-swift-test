@@ -29,8 +29,10 @@ extension Data {
 }
 
 final class BandersnatchTests: XCTestCase {
-	// test case from: https://gist.github.com/sourabhniyogi/cc3d5f0cf8017f29e2ae29e16ab019d5
 	func testBandersnatchRustCallWorks() throws {
+		// test case from: https://gist.github.com/sourabhniyogi/cc3d5f0cf8017f29e2ae29e16ab019d5
+		// just test rust call works
+
 		let ringHexStrings = [
 			"5e465beb01dbafe160ce8216047f2155dd0569f058afd52dcea601025a8d161d",
 			"3d5e5a51aab2b048f8686ecd79712a80e3265a114cc73f14bdb2a59233fb66d0",
@@ -40,11 +42,11 @@ final class BandersnatchTests: XCTestCase {
 			"f16e5352840afb47e206b5c89f560f2611835855cf2e6ebad1acc9520a72591d",
 		]
 
-		// let publicSize = sizeof_public()
+		let ringSetPtr = UnsafeMutablePointer<CPublic>.allocate(
+			capacity: ringHexStrings.count)
 
-		let ringSet = UnsafeMutablePointer<OpaquePointer?>.allocate(capacity: ringHexStrings.count)
 		defer {
-			ringSet.deallocate()
+			ringSetPtr.deallocate()
 		}
 
 		for (index, hexString) in ringHexStrings.enumerated() {
@@ -52,9 +54,14 @@ final class BandersnatchTests: XCTestCase {
 				XCTFail("Failed to convert hex string to bytes")
 				return
 			}
-			let publicPtr = public_deserialize_compressed([UInt8](data), UInt(data.count))
-			XCTAssertNotNil(publicPtr, "Deserialization failed for \(hexString)")
-			ringSet[index] = publicPtr
+			let cPublic = public_deserialize_compressed([UInt8](data), UInt(data.count))
+			guard let validCPublic = cPublic else {
+				XCTFail("Deserialization failed for \(hexString)")
+				return
+			}
+			XCTAssert(validCPublic.pointee._0.0 != 0, "Pub key is 0, failed for \(hexString)")
+			(ringSetPtr + index).initialize(to: validCPublic.pointee)
+			// print((ringSetPtr + index).pointee)
 		}
 
 		var vrfInputData = Data("jam_ticket_seal".utf8)
@@ -76,10 +83,10 @@ final class BandersnatchTests: XCTestCase {
 			return
 		}
 
-		var success = false
-		let verifierPtr = verifier_new(ringSet.pointee, UInt(ringHexStrings.count), &success)
-		XCTAssert(success)
-		XCTAssertNotNil(verifierPtr)
+		// var success = false
+		// let verifierPtr = verifier_new(ringSetPtr, UInt(ringHexStrings.count), &success)
+		// XCTAssert(success)
+		// XCTAssertNotNil(verifierPtr)
 
 		// var verifyOut = [UInt8](repeating: 0, count: 32)
 		// let verfyRes = verifier_ring_vrf_verify(

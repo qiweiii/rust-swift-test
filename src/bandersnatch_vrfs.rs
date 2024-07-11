@@ -1,7 +1,8 @@
 // Code copied and modified based on: https://github.com/davxy/bandersnatch-vrfs-spec/blob/main/example/src/main.rs
 // Changes: made RING_SIZE configurable, and add stuff for cbindgen
 
-use std::mem::size_of;
+use std::io::Cursor;
+// use std::mem::size_of;
 use std::os::raw::c_uchar;
 use std::ptr;
 
@@ -13,27 +14,81 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
 const RING_SIZE_DEFAULT: usize = 1023;
 
-#[no_mangle]
-pub extern "C" fn sizeof_public() -> usize {
-    size_of::<Public>()
+// TODO: add secret_new_from_seed, secret_get_public
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct CPublic([u8; 32]);
+
+impl From<CPublic> for Public {
+    fn from(c_public: CPublic) -> Self {
+        Public::deserialize_compressed(&c_public.0[..]).expect("CPublic to Public failed")
+    }
 }
 
+impl From<Public> for CPublic {
+    fn from(public: Public) -> Self {
+        let mut buffer = Vec::with_capacity(32);
+        let mut cursor = Cursor::new(&mut buffer);
+        public
+            .serialize_compressed(&mut cursor)
+            .expect("Public to CPublic failed");
+
+        let mut c_public_bytes = [0u8; 32];
+        c_public_bytes.copy_from_slice(&buffer);
+        CPublic(c_public_bytes)
+    }
+}
+
+// #[no_mangle]
+// pub extern "C" fn public_deserialize_compressed(data: *const u8, len: usize) -> *mut Public {
+//     if data.is_null() {
+//         std::ptr::null_mut()
+//     } else {
+//         let slice = unsafe { std::slice::from_raw_parts(data, len) };
+//         println!("{:?}", slice);
+//         match Public::deserialize_compressed(slice) {
+//             Ok(public) => Box::into_raw(Box::new(public)),
+//             Err(_) => std::ptr::null_mut(),
+//         }
+//     }
+// }
 #[no_mangle]
-pub extern "C" fn public_deserialize_compressed(data: *const u8, len: usize) -> *mut Public {
+pub extern "C" fn public_deserialize_compressed(data: *const u8, len: usize) -> *mut CPublic {
     if data.is_null() {
         std::ptr::null_mut()
     } else {
         let slice = unsafe { std::slice::from_raw_parts(data, len) };
+        // println!("{:?}", slice);
         match Public::deserialize_compressed(slice) {
-            Ok(public) => Box::into_raw(Box::new(public)),
+            Ok(public) => Box::into_raw(Box::new(public.into())),
             Err(_) => std::ptr::null_mut(),
         }
     }
 }
 
+// #[no_mangle]
+// pub extern "C" fn prover_new(
+//     ring: *const Public,
+//     ring_len: usize,
+//     prover_idx: usize,
+//     success: *mut bool,
+// ) -> *mut Prover {
+//     if ring.is_null() || success.is_null() {
+//         unsafe { *success = false };
+//         std::ptr::null_mut()
+//     } else {
+//         let ring_slice = unsafe { std::slice::from_raw_parts(ring, ring_len) };
+//         let ring_vec = ring_slice.to_vec();
+//         let prover = Prover::new(ring_vec, prover_idx);
+//         let boxed_prover = Box::new(prover);
+//         unsafe { *success = true };
+//         Box::into_raw(boxed_prover)
+//     }
+// }
 #[no_mangle]
 pub extern "C" fn prover_new(
-    ring: *const Public,
+    ring: *const CPublic,
     ring_len: usize,
     prover_idx: usize,
     success: *mut bool,
@@ -42,8 +97,8 @@ pub extern "C" fn prover_new(
         unsafe { *success = false };
         std::ptr::null_mut()
     } else {
-        let ring_slice = unsafe { std::slice::from_raw_parts(ring, ring_len) };
-        let ring_vec = ring_slice.to_vec();
+        let ring_slice_c = unsafe { std::slice::from_raw_parts(ring, ring_len) };
+        let ring_vec = ring_slice_c.iter().map(|&cp| cp.into()).collect();
         let prover = Prover::new(ring_vec, prover_idx);
         let boxed_prover = Box::new(prover);
         unsafe { *success = true };
@@ -119,9 +174,27 @@ pub extern "C" fn prover_ietf_vrf_sign(
     true
 }
 
+// #[no_mangle]
+// pub extern "C" fn verifier_new(
+//     ring: *const Public,
+//     ring_len: usize,
+//     success: *mut bool,
+// ) -> *mut Verifier {
+//     if ring.is_null() || success.is_null() {
+//         unsafe { *success = false };
+//         std::ptr::null_mut()
+//     } else {
+//         let ring_slice = unsafe { std::slice::from_raw_parts(ring, ring_len) };
+//         let ring_vec = ring_slice.to_vec();
+//         let verifier = Verifier::new(ring_vec);
+//         let boxed_verifier = Box::new(verifier);
+//         unsafe { *success = true };
+//         Box::into_raw(boxed_verifier)
+//     }
+// }
 #[no_mangle]
 pub extern "C" fn verifier_new(
-    ring: *const Public,
+    ring: *const CPublic,
     ring_len: usize,
     success: *mut bool,
 ) -> *mut Verifier {
@@ -129,8 +202,9 @@ pub extern "C" fn verifier_new(
         unsafe { *success = false };
         std::ptr::null_mut()
     } else {
-        let ring_slice = unsafe { std::slice::from_raw_parts(ring, ring_len) };
-        let ring_vec = ring_slice.to_vec();
+        let ring_slice_c = unsafe { std::slice::from_raw_parts(ring, ring_len) };
+        // println!("{:?}", ring_slice_c);
+        let ring_vec = ring_slice_c.iter().map(|&cp| cp.into()).collect();
         let verifier = Verifier::new(ring_vec);
         let boxed_verifier = Box::new(verifier);
         unsafe { *success = true };
