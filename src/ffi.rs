@@ -1,5 +1,4 @@
 use std::io::Cursor;
-use std::os::raw::c_uchar;
 use std::ptr;
 
 use ark_ec_vrfs::{prelude::ark_serialize, suites::bandersnatch::edwards as bandersnatch};
@@ -160,11 +159,11 @@ pub extern "C" fn verifier_new(
 pub extern "C" fn verifier_ring_vrf_verify(
     out: *mut u8,
     verifier: *const Verifier,
-    vrf_input_data: *const c_uchar,
+    vrf_input_data: *const u8,
     vrf_input_len: usize,
-    aux_data: *const c_uchar,
+    aux_data: *const u8,
     aux_data_len: usize,
-    signature: *const c_uchar,
+    signature: *const u8,
     signature_len: usize,
 ) -> bool {
     if verifier.is_null()
@@ -172,7 +171,6 @@ pub extern "C" fn verifier_ring_vrf_verify(
         || aux_data.is_null()
         || signature.is_null()
         || vrf_input_len == 0
-        || aux_data_len == 0
         || signature_len == 0
         || out.is_null()
     {
@@ -184,6 +182,8 @@ pub extern "C" fn verifier_ring_vrf_verify(
     let signature_slice = unsafe { std::slice::from_raw_parts(signature, signature_len) };
 
     let verifier = unsafe { &*verifier };
+
+    println!("verifier: {:p}", verifier);
 
     let result_array =
         match verifier.ring_vrf_verify(vrf_input_slice, aux_data_slice, signature_slice) {
@@ -203,11 +203,11 @@ pub extern "C" fn verifier_ring_vrf_verify(
 pub extern "C" fn verifier_ietf_vrf_verify(
     out: *mut u8,
     verifier: *const Verifier,
-    vrf_input_data: *const c_uchar,
+    vrf_input_data: *const u8,
     vrf_input_len: usize,
-    aux_data: *const c_uchar,
+    aux_data: *const u8,
     aux_data_len: usize,
-    signature: *const c_uchar,
+    signature: *const u8,
     signature_len: usize,
     signer_key_index: usize,
 ) -> bool {
@@ -216,7 +216,6 @@ pub extern "C" fn verifier_ietf_vrf_verify(
         || aux_data.is_null()
         || signature.is_null()
         || vrf_input_len == 0
-        || aux_data_len == 0
         || signature_len == 0
         || out.is_null()
     {
