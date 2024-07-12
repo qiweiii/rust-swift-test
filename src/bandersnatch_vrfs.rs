@@ -12,7 +12,6 @@ const RING_SIZE_DEFAULT: usize = 1023;
 // This is the IETF `Prove` procedure output as described in section 2.2
 // of the Bandersnatch VRFs specification
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-#[repr(C)]
 pub struct IetfVrfSignature {
     output: Output,
     proof: IetfProof,
@@ -21,7 +20,6 @@ pub struct IetfVrfSignature {
 // This is the IETF `Prove` procedure output as described in section 4.2
 // of the Bandersnatch VRFs specification
 #[derive(CanonicalSerialize, CanonicalDeserialize)]
-#[repr(C)]
 pub struct RingVrfSignature {
     output: Output,
     // This contains both the Pedersen proof and actual ring proof.

@@ -3,11 +3,11 @@ use std::ptr;
 
 use ark_ec_vrfs::{prelude::ark_serialize, suites::bandersnatch::edwards as bandersnatch};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use bandersnatch::Public;
+use bandersnatch::{Public, Secret};
 
 use crate::bandersnatch_vrfs::{Prover, Verifier};
 
-// TODO: add secret_new_from_seed, secret_get_public
+// MARK: Public
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -39,13 +39,81 @@ pub extern "C" fn public_deserialize_compressed(data: *const u8, len: usize) -> 
         std::ptr::null_mut()
     } else {
         let slice = unsafe { std::slice::from_raw_parts(data, len) };
-        // println!("{:?}", slice);
+
         match Public::deserialize_compressed(slice) {
             Ok(public) => Box::into_raw(Box::new(public.into())),
             Err(_) => std::ptr::null_mut(),
         }
     }
 }
+
+// MARK: Secret
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct CSecret([u8; 96]);
+
+impl From<CSecret> for Secret {
+    fn from(c_secret: CSecret) -> Self {
+        Secret::deserialize_compressed(&c_secret.0[..]).expect("CSecret to Secret failed")
+    }
+}
+
+impl From<Secret> for CSecret {
+    fn from(secret: Secret) -> Self {
+        let mut buffer = Vec::with_capacity(96);
+        let mut cursor = Cursor::new(&mut buffer);
+        secret
+            .serialize_compressed(&mut cursor)
+            .expect("Secret to CSecret failed");
+
+        let mut c_secret_bytes = [0u8; 96];
+        c_secret_bytes.copy_from_slice(&buffer);
+        CSecret(c_secret_bytes)
+    }
+}
+
+// #[no_mangle]
+// pub extern "C" fn secret_deserialize_compressed(data: *const u8, len: usize) -> *mut CSecret {
+//     if data.is_null() {
+//         std::ptr::null_mut()
+//     } else {
+//         let slice = unsafe { std::slice::from_raw_parts(data, len) };
+
+//         match Secret::deserialize_compressed(slice) {
+//             Ok(secret) => Box::into_raw(Box::new(secret.into())),
+//             Err(_) => std::ptr::null_mut(),
+//         }
+//     }
+// }
+
+#[no_mangle]
+pub extern "C" fn secret_new_from_seed(seed: *const u8, seed_len: usize) -> *mut CSecret {
+    if seed.is_null() || seed_len != 32 {
+        std::ptr::null_mut()
+    } else {
+        let seed_bytes = unsafe { std::slice::from_raw_parts(seed, seed_len) };
+
+        let secret = Secret::from_seed(seed_bytes);
+
+        Box::into_raw(Box::new(secret.into()))
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn secret_get_public(secret: *const CSecret) -> *const CPublic {
+    if secret.is_null() {
+        std::ptr::null()
+    } else {
+        let secret = unsafe { &*secret };
+
+        let public = Into::<Secret>::into(*secret).public();
+
+        Box::into_raw(Box::new(public.into()))
+    }
+}
+
+// MARK: Prover
 
 #[no_mangle]
 pub extern "C" fn prover_new(
@@ -135,6 +203,8 @@ pub extern "C" fn prover_ietf_vrf_sign(
     true
 }
 
+// MARK: Verifier
+
 #[no_mangle]
 pub extern "C" fn verifier_new(
     ring: *const CPublic,
@@ -148,8 +218,8 @@ pub extern "C" fn verifier_new(
         let ring_slice_c = unsafe { std::slice::from_raw_parts(ring, ring_len) };
         let ring_vec = ring_slice_c.iter().map(|&cp| cp.into()).collect();
         let verifier = Verifier::new(ring_vec);
-        let boxed_verifier = Box::new(verifier);
         unsafe { *success = true };
+        let boxed_verifier = Box::new(verifier);
         Box::into_raw(boxed_verifier)
     }
 }
@@ -183,12 +253,10 @@ pub extern "C" fn verifier_ring_vrf_verify(
 
     let verifier = unsafe { &*verifier };
 
-    println!("verifier: {:p}", verifier);
-
     let result_array =
         match verifier.ring_vrf_verify(vrf_input_slice, aux_data_slice, signature_slice) {
             Ok(array) => array,
-            Err(_) => return false, // Handle error case
+            Err(_) => return false,
         };
 
     unsafe {
@@ -235,7 +303,7 @@ pub extern "C" fn verifier_ietf_vrf_verify(
         signer_key_index,
     ) {
         Ok(array) => array,
-        Err(_) => return false, // Handle error case
+        Err(_) => return false,
     };
 
     unsafe {
