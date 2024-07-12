@@ -147,7 +147,6 @@ pub extern "C" fn verifier_new(
         std::ptr::null_mut()
     } else {
         let ring_slice_c = unsafe { std::slice::from_raw_parts(ring, ring_len) };
-        // println!("{:?}", ring_slice_c);
         let ring_vec = ring_slice_c.iter().map(|&cp| cp.into()).collect();
         let verifier = Verifier::new(ring_vec);
         let boxed_verifier = Box::new(verifier);
@@ -174,7 +173,7 @@ pub extern "C" fn verifier_ring_vrf_verify(
         || signature.is_null()
         || vrf_input_len == 0
         || aux_data_len == 0
-        || signature_len != 32
+        || signature_len == 0
         || out.is_null()
     {
         return false;
@@ -218,7 +217,7 @@ pub extern "C" fn verifier_ietf_vrf_verify(
         || signature.is_null()
         || vrf_input_len == 0
         || aux_data_len == 0
-        || signature_len != 64
+        || signature_len == 0
         || out.is_null()
     {
         return false;

@@ -83,19 +83,19 @@ final class BandersnatchTests: XCTestCase {
 			return
 		}
 
-		// var success = false
-		// let verifierPtr = verifier_new(ringSetPtr, UInt(ringHexStrings.count), &success)
-		// XCTAssert(success)
-		// XCTAssertNotNil(verifierPtr)
+		var success = false
+		let verifierPtr = verifier_new(ringSetPtr, UInt(ringHexStrings.count), &success)
+		XCTAssert(success)
+		XCTAssertNotNil(verifierPtr)
 
-		// var verifyOut = [UInt8](repeating: 0, count: 32)
-		// let verfyRes = verifier_ring_vrf_verify(
-		// 	&verifyOut, verifierPtr, [UInt8](vrfInputData), UInt(vrfInputData.count), [UInt8](auxData),
-		// 	UInt(auxData.count), [UInt8](signatureBytes), UInt(signatureBytes.count))
+		print(signatureBytes.count)
 
-		// print(verfyRes, verifyOut)
-		// XCTAssert(verfyRes)
+		var verifyOut = [UInt8](repeating: 0, count: 32)
+		let verfyRes = verifier_ring_vrf_verify(
+			&verifyOut, verifierPtr, [UInt8](vrfInputData), UInt(vrfInputData.count), [UInt8](auxData),
+			UInt(auxData.count), [UInt8](signatureBytes), UInt(signatureBytes.count))
 
-		// free(UnsafeMutableRawPointer(verifierPtr))
+		XCTAssertFalse(verfyRes)
+		print(verfyRes, verifyOut)
 	}
 }
