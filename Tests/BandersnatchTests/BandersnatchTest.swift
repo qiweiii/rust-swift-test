@@ -26,6 +26,12 @@ extension Data {
 
 		self.init(data)
 	}
+
+	func toHex() -> String {
+		map { byte in
+			String(format: "%02hhx", byte)
+		}.joined()
+	}
 }
 
 final class BandersnatchTests: XCTestCase {
@@ -85,7 +91,8 @@ final class BandersnatchTests: XCTestCase {
 		}
 
 		var proverSuccess = false
-		let proverPtr = prover_new(ringSetPtr, UInt(ringHexStrings.count), 0, &proverSuccess)
+		// what is prover_idx?
+		let proverPtr = prover_new(ringSetPtr, UInt(ringHexStrings.count), 1, &proverSuccess)
 		XCTAssert(proverSuccess)
 		XCTAssertNotNil(proverPtr)
 
@@ -94,6 +101,7 @@ final class BandersnatchTests: XCTestCase {
 			&signOut, proverPtr, [UInt8](vrfInputData), UInt(vrfInputData.count), [UInt8](auxData),
 			UInt(auxData.count))
 		XCTAssert(signRes)
+		XCTAssertEqual(Data(signOut).toHex(), signatureHex)
 		// print(signRes, signOut)
 
 		var verifySuccess = false
