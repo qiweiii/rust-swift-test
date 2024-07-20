@@ -84,17 +84,28 @@ final class BandersnatchTests: XCTestCase {
 			return
 		}
 
-		var success = false
-		let verifierPtr = verifier_new(ringSetPtr, UInt(ringHexStrings.count), &success)
-		XCTAssert(success)
+		var proverSuccess = false
+		let proverPtr = prover_new(ringSetPtr, UInt(ringHexStrings.count), 0, &proverSuccess)
+		XCTAssert(proverSuccess)
+		XCTAssertNotNil(proverPtr)
+
+		var signOut = [UInt8](repeating: 0, count: 784)
+		let signRes = prover_ring_vrf_sign(
+			&signOut, proverPtr, [UInt8](vrfInputData), UInt(vrfInputData.count), [UInt8](auxData),
+			UInt(auxData.count))
+		XCTAssert(signRes)
+		// print(signRes, signOut)
+
+		var verifySuccess = false
+		let verifierPtr = verifier_new(ringSetPtr, UInt(ringHexStrings.count), &verifySuccess)
+		XCTAssert(verifySuccess)
 		XCTAssertNotNil(verifierPtr)
 
 		var verifyOut = [UInt8](repeating: 0, count: 32)
 		let verfyRes = verifier_ring_vrf_verify(
 			&verifyOut, verifierPtr, [UInt8](vrfInputData), UInt(vrfInputData.count), [UInt8](auxData),
 			UInt(auxData.count), [UInt8](signatureBytes), UInt(signatureBytes.count))
-
 		XCTAssert(verfyRes)
-		print(verfyRes, verifyOut)
+		// print(verfyRes, verifyOut)
 	}
 }

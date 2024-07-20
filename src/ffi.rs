@@ -147,9 +147,8 @@ pub extern "C" fn prover_ring_vrf_sign(
 ) -> bool {
     if prover.is_null()
         || vrf_input_data.is_null()
-        || aux_data.is_null()
         || vrf_input_len == 0
-        || aux_data_len == 0
+        || aux_data.is_null()
         || out.is_null()
     {
         return false;
@@ -183,7 +182,6 @@ pub extern "C" fn prover_ietf_vrf_sign(
         || vrf_input_data.is_null()
         || aux_data.is_null()
         || vrf_input_len == 0
-        || aux_data_len == 0
         || out.is_null()
     {
         return false;
