@@ -1,4 +1,8 @@
 target
 .build
 .vscode
+
 generated
+
+include
+lib

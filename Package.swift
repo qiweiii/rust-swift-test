@@ -10,24 +10,27 @@ let package = Package(
 	],
 	products: [
 		// Products define the executables and libraries a package produces, making them visible to other packages.
-		.library(
-			name: "Bandersnatch",
-			targets: ["Bandersnatch"]
-		)
+		// .library(
+		// 	name: "Bandersnatch",
+		// 	targets: ["Bandersnatch"]
+		// )
 	],
 	dependencies: [],
 	targets: [
 		// Targets are the basic building blocks of a package, defining a module or a test suite.
 		// Targets can depend on other targets in this package and products from dependencies.
 		.target(
-			name: "Bandersnatch",
+			name: "bandersnatch_vrfs",
 			dependencies: [],
 			path: "./",
 			sources: [],
-			publicHeadersPath: "./",
+			publicHeadersPath: "./include",
+			cSettings: [
+				.headerSearchPath("./include")
+			],
 			linkerSettings: [
 				.unsafeFlags([
-					"-L./target/aarch64-apple-darwin/debug/",
+					"-L./lib",
 					"-lbandersnatch_vrfs",
 				])
 			]
@@ -35,7 +38,7 @@ let package = Package(
 		.testTarget(
 			name: "BandersnatchTests",
 			dependencies: [
-				"Bandersnatch"
+				"bandersnatch_vrfs"
 			]
 		),
 	],

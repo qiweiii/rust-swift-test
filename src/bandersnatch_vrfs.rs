@@ -1,5 +1,5 @@
 // Code copied and modified based on: https://github.com/davxy/bandersnatch-vrfs-spec/blob/main/example/src/main.rs
-// Changes: basically made all things public, and made RING_SIZE configurable
+// Changes: made RING_SIZE configurable, and add attributes for cbindgen
 
 use ark_ec_vrfs::suites::bandersnatch::edwards as bandersnatch;
 use ark_ec_vrfs::{prelude::ark_serialize, suites::bandersnatch::edwards::RingContext};
@@ -27,7 +27,7 @@ pub struct RingVrfSignature {
 }
 
 // "Static" ring context data
-pub fn ring_context() -> &'static RingContext {
+fn ring_context() -> &'static RingContext {
     use std::sync::OnceLock;
     static RING_CTX: OnceLock<RingContext> = OnceLock::new();
     let ring_size: usize = std::env::var("RING_SIZE").map_or(RING_SIZE_DEFAULT, |s| {
@@ -43,12 +43,12 @@ pub fn ring_context() -> &'static RingContext {
         let mut buf = Vec::new();
         file.read_to_end(&mut buf).unwrap();
         let pcs_params = PcsParams::deserialize_uncompressed_unchecked(&mut &buf[..]).unwrap();
-        RingContext::from_srs(pcs_params, ring_size).unwrap()
+        RingContext::from_srs(ring_size, pcs_params).unwrap()
     })
 }
 
 // Construct VRF Input Point from arbitrary data (section 1.2)
-pub fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
+fn vrf_input_point(vrf_input_data: &[u8]) -> Input {
     let point =
         <bandersnatch::BandersnatchSha512Ell2 as ark_ec_vrfs::Suite>::data_to_point(vrf_input_data)
             .unwrap();
@@ -116,6 +116,7 @@ impl Prover {
     }
 }
 
+/// cbindgen:ignore
 pub type RingCommitment = ark_ec_vrfs::ring::RingCommitment<bandersnatch::BandersnatchSha512Ell2>;
 
 // Verifier actor.
