@@ -90,8 +90,8 @@ final class BandersnatchTests: XCTestCase {
 			return
 		}
 
+		// TODO: what should be prover_idx? or missed sth here like wrong input data?
 		var proverSuccess = false
-		// what is prover_idx?
 		let proverPtr = prover_new(ringSetPtr, UInt(ringHexStrings.count), 1, &proverSuccess)
 		XCTAssert(proverSuccess)
 		XCTAssertNotNil(proverPtr)
